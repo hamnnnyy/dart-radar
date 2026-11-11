@@ -201,3 +201,22 @@ footer { color: var(--sub); font-size: 12px; margin-top: 48px; line-height: 1.7;
 .col small { font-size: 12px; color: var(--sub); }
 .col .mt b { font-size: 14px; font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+
+/* Industry-relative grade + print */
+.links { display: flex; gap: 14px; align-items: center; }
+.print { white-space: nowrap; font: inherit; font-size: 13px; color: var(--sub); background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.pgrade { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 14px 0 0 !important; padding-top: 12px; border-top: 1px dashed var(--line); font-size: 14px; }
+.pgrade b { font-size: 18px; }
+.pgrade .gA, .pgrade .gB { color: var(--good); }
+.pgrade .gC { color: var(--warn); }
+.pgrade .gD { color: var(--bad); }
+.pgrade small { flex-basis: 100%; color: var(--sub); font-size: 12px; }
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff; }
+  .top, .links, .featured, .how { display: none !important; }
+  main.wrap { padding-top: 0 !important; }
+  .card, .ratio, .kpi { break-inside: avoid; box-shadow: none !important; }
+  .grid { grid-template-columns: repeat(2, 1fr); }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

@@ -9,7 +9,7 @@ export type Row = {
   bfefrmtrm_amount?: string;
 };
 
-// Index 0 = oldest year, 2 = latest year.
+// Index 0 = oldest year, last = latest year. One report gives 3 years; the API route joins two reports for 5.
 export type Series = (number | null)[];
 
 const num = (s?: string): number | null => {
@@ -66,7 +66,7 @@ function grade(v: number | null, good: number, warn: number, higherIsBetter = tr
 }
 
 export function ratios(a: Accounts): Ratio[] {
-  const y = [0, 1, 2];
+  const y = a.assets.map((_, i) => i);
   const debt = y.map((i) => (a.equity[i] !== null && a.equity[i]! <= 0 ? null : div(a.liabilities[i], a.equity[i])));
   const current = y.map((i) => div(a.currentAssets[i], a.currentLiabilities[i]));
   const equityRatio = y.map((i) => div(a.equity[i], a.assets[i]));
@@ -92,9 +92,9 @@ export function ratios(a: Accounts): Ratio[] {
 
 const sub = (a: number | null, b: number | null) => (a === null || b === null ? null : a - b);
 
-// 한국은행 기준 한계기업: 이자보상배율 3년 연속 1 미만.
+// 한국은행 기준 한계기업: 이자보상배율 3년 연속 1 미만 (최근 3년).
 export function isZombie(rs: Ratio[]): boolean | null {
-  const icr = rs.find((r) => r.key === "icr")!.values;
+  const icr = rs.find((r) => r.key === "icr")!.values.slice(-3);
   if (icr.some((v) => v === null)) return null;
   return icr.every((v) => v! < 1);
 }
@@ -102,10 +102,14 @@ export function isZombie(rs: Ratio[]): boolean | null {
 const POINTS: Record<Level, number> = { good: 100, warn: 60, bad: 15, na: 0 };
 
 // Simple self-made health score over the latest year, not a credit rating.
-export function score(rs: Ratio[]): { score: number; grade: string } | null {
-  const ls = rs.map((r) => r.levels[2]).filter((l) => l !== "na");
+// `latest` swaps in other levels for the same ratios, e.g. industry-relative ones.
+export function score(rs: Ratio[], latest = rs.map((r) => r.levels.at(-1)!)): { score: number; grade: string } | null {
+  const ls = latest.filter((l) => l !== "na");
   if (!ls.length) return null;
   let s = Math.round(ls.reduce((t, l) => t + POINTS[l], 0) / ls.length);
   if (isZombie(rs)) s = Math.min(s, 30);
   return { score: s, grade: s >= 85 ? "A" : s >= 70 ? "B" : s >= 50 ? "C" : "D" };
 }
+
+// Industry-relative level from "상위 X%": top 40% good, bottom 25% bad.
+export const peerLevel = (top: number): Level => (top <= 40 ? "good" : top <= 75 ? "warn" : "bad");

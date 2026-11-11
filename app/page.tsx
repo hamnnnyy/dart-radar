@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ratios, isZombie, score, type Accounts, type Ratio, type Level } from "@/lib/ratios";
+import { ratios, isZombie, score, peerLevel, type Accounts, type Ratio, type Level } from "@/lib/ratios";
 import { signals, type Audit, type HolderChange, type Signal } from "@/lib/signals";
 import { KSIC } from "@/lib/ksic";
 
@@ -22,7 +22,11 @@ const fmt = (v: number | null, unit: string) =>
 const eok = (v: number | null) => (v === null ? "–" : Math.round(v / 1e8).toLocaleString("ko-KR"));
 const money = (v: number | null): [string, string] =>
   v === null ? ["–", ""] : Math.abs(v) >= 1e12 ? [(v / 1e12).toLocaleString("ko-KR", { maximumFractionDigits: 1 }), "조"] : [eok(v), "억"];
-const yoy = (s: (number | null)[]) => (s[1] === null || s[2] === null || s[1] === 0 ? null : ((s[2] - s[1]) / Math.abs(s[1])) * 100);
+const last = <T,>(s: T[]) => s[s.length - 1];
+const yoy = (s: (number | null)[]) => {
+  const [p, c] = [s[s.length - 2] ?? null, last(s)];
+  return p === null || c === null || p === 0 ? null : ((c - p) / Math.abs(p)) * 100;
+};
 
 // Peer stats store debt-free ICR as 9999 (JSON has no Infinity); match that here.
 const CAP = 9999;
@@ -104,7 +108,7 @@ export default function Page() {
           {home && (
             <>
               <p className="eyebrow">기업 재무건전성 · 부실 조기경보</p>
-              <h1>재무제표 속 위험 신호,<br />3년 추이로 한눈에.</h1>
+              <h1>재무제표 속 위험 신호,<br />5년 추이로 한눈에.</h1>
               <p className="lead">
                 6개 핵심 비율을 <b>업종 평균</b>과 비교하고, 감사의견·자본잠식·최대주주 변경 같은 <b>부실 징후</b>와 <b>한계기업</b> 여부를 함께 점검합니다.
               </p>
@@ -187,9 +191,15 @@ function Report({ r, peers }: { r: Result; peers: Peers | null }) {
   const sig = signals(r.accounts, r.audit, r.holders, r.year);
   const ksic = r.ksic ?? (r.code ? peers?.byCorp[r.code] : undefined);
   const group = ksic ? peers?.ind[ksic] : undefined;
-  const years = [r.year - 2, r.year - 1, r.year];
-  const flagged = rs.filter((x) => x.levels[2] === "bad");
-  const warned = rs.filter((x) => x.levels[2] === "warn");
+  const n = r.accounts.assets.length;
+  const L = n - 1;
+  const years = r.accounts.assets.map((_, i) => r.year - L + i);
+  const flagged = rs.filter((x) => x.levels[L] === "bad");
+  const warned = rs.filter((x) => x.levels[L] === "warn");
+  // Same score, but each ratio graded by its rank in the industry instead of fixed cut-offs.
+  // Missing rank (e.g. 자본잠식 has no debt ratio) keeps the absolute level.
+  const tops = rs.map((x) => (group ? topPct(group.r[x.key] ?? [], x.values[L], x.higher) : null));
+  const peerSc = group && group.n >= 10 ? score(rs, rs.map((x, i) => (tops[i] === null ? x.levels[L] : peerLevel(tops[i]!)))) : null;
   const badSig = sig.filter((s) => s.level === "bad").length;
   const level: Level = zombie || flagged.length >= 2 || badSig ? "bad" : flagged.length || warned.length || sig.length ? "warn" : "good";
   const title = zombie ? "한계기업 신호" : badSig ? "부실 징후 감지" : level === "bad" ? "재무 위험 다수" : level === "warn" ? "일부 주의 필요" : "재무 상태 양호";
@@ -217,9 +227,12 @@ function Report({ r, peers }: { r: Result; peers: Peers | null }) {
             </p>
           </div>
           {r.fs !== "MANUAL" && (
+            <span className="links">
+            <button className="print" onClick={() => print()}>PDF 저장</button>
             <a className="dart" href={`https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(r.name)}`} target="_blank" rel="noreferrer">
               DART 원문 ↗
             </a>
+            </span>
           )}
         </div>
         <div className="body">
@@ -235,9 +248,15 @@ function Report({ r, peers }: { r: Result; peers: Peers | null }) {
             </p>
             <ul className="flags">
               {[...flagged, ...warned].map((x) => (
-                <li key={x.key}><i className={`dot ${x.levels[2]}`} />{x.label} <b>{show(x, 2)}</b></li>
+                <li key={x.key}><i className={`dot ${x.levels[L]}`} />{x.label} <b>{show(x, L)}</b></li>
               ))}
             </ul>
+            {peerSc && (
+              <p className="pgrade">
+                업종 상대평가 <b className={`g${peerSc.grade}`}>{peerSc.grade}</b> {peerSc.score}점
+                <small>{KSIC[ksic!] ?? ksic} 상장사 {group!.n}곳 중 순위로 다시 매긴 점수 · 상위 40% 양호, 하위 25% 위험</small>
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -248,7 +267,7 @@ function Report({ r, peers }: { r: Result; peers: Peers | null }) {
           return (
             <div key={k} className="kpi">
               <span>{k}</span>
-              <b>{money(v[2])[0]}<small>{money(v[2])[1]}</small></b>
+              <b>{money(last(v))[0]}<small>{money(last(v))[1]}</small></b>
               <em className={d === null ? "" : d >= 0 ? "up" : "down"}>{d === null ? "–" : `${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}%`}</em>
             </div>
           );
@@ -259,10 +278,10 @@ function Report({ r, peers }: { r: Result; peers: Peers | null }) {
       <Signals list={sig} audit={r.audit} manual={r.fs === "MANUAL"} />
 
       <h3 className="sec">
-        지표별 3개년 추이
+        지표별 {n}개년 추이
         {group && <small>업종 비교: {KSIC[ksic!] ?? ksic} 상장사 {group.n}곳</small>}
       </h3>
-      <div className="grid">{rs.map((x) => <RatioCard key={x.key} r={x} years={years} peer={group?.r[x.key]} />)}</div>
+      <div className="grid">{rs.map((x, i) => <RatioCard key={x.key} r={x} years={years} peer={group?.r[x.key]} top={tops[i]} />)}</div>
 
       <h3 className="sec">주요 계정 <small>단위: 억원</small></h3>
       <div className="card flush">
@@ -308,7 +327,7 @@ function Gauge({ s, grade, level }: { s: number | null; grade: string; level: Le
   );
 }
 
-// 3-point line with threshold guides (+ industry median); the y-domain includes guides so they stay visible.
+// N-point line with threshold guides (+ industry median); the y-domain includes guides so they stay visible.
 function Spark({ r, med }: { r: Ratio; med: number | null }) {
   const W = 260, H = 84, P = 10;
   const vals = r.values.map((v) => (v === null ? null : Number.isFinite(v) ? v : null));
@@ -318,7 +337,7 @@ function Spark({ r, med }: { r: Ratio; med: number | null }) {
   let lo = Math.min(...nums), hi = Math.max(...nums);
   const pad = (hi - lo || 1) * 0.15; lo -= pad; hi += pad;
   const y = (v: number) => P + (1 - (v - lo) / (hi - lo)) * (H - 2 * P);
-  const x = (i: number) => 24 + i * ((W - 48) / 2);
+  const x = (i: number) => 24 + i * ((W - 48) / Math.max(1, r.values.length - 1));
   const pts = r.values.map((v, i) => (v === null ? null : [x(i), v === Infinity ? P : y(v)] as const));
   const line = pts.filter(Boolean).map((p) => p!.join(",")).join(" ");
   return (
@@ -338,16 +357,16 @@ function Spark({ r, med }: { r: Ratio; med: number | null }) {
 // Debt ratio is undefined when equity <= 0; say why instead of a dash.
 const show = (r: Ratio, i: number) => (r.key === "debt" && r.values[i] === null && r.levels[i] === "bad" ? "자본잠식" : fmt(r.values[i], r.unit));
 
-function RatioCard({ r, years, peer }: { r: Ratio; years: number[]; peer?: number[] }) {
+function RatioCard({ r, years, peer, top }: { r: Ratio; years: number[]; peer?: number[]; top: number | null }) {
   const med = peer ? median(peer) : null;
-  const top = peer ? topPct(peer, r.values[2], r.higher) : null;
+  const L = r.values.length - 1;
   return (
     <article className="ratio">
       <header>
         <h4>{r.label}</h4>
-        <span className={`pill sm ${r.levels[2]}`}>{LABEL[r.levels[2]]}</span>
+        <span className={`pill sm ${r.levels[L]}`}>{LABEL[r.levels[L]]}</span>
       </header>
-      <div className="big">{show(r, 2)}</div>
+      <div className="big">{show(r, L)}</div>
       {med !== null && (
         <p className="peer">
           <i />업종 중앙값 <b>{fmt(med >= CAP ? Infinity : med, r.unit)}</b>
@@ -355,7 +374,7 @@ function RatioCard({ r, years, peer }: { r: Ratio; years: number[]; peer?: numbe
         </p>
       )}
       <Spark r={r} med={med} />
-      <div className="years">{years.map((y, i) => <span key={y}><i className={`dot ${r.levels[i]}`} />{y}<b>{show(r, i)}</b></span>)}</div>
+      <div className="years" style={{ gridTemplateColumns: `repeat(${years.length}, 1fr)` }}>{years.map((y, i) => <span key={y}><i className={`dot ${r.levels[i]}`} />{y}<b>{show(r, i)}</b></span>)}</div>
       <p className="hint">{r.hint} <em>기준: 양호 {r.higher ? "≥" : "≤"} {r.good}{r.unit}, 주의 {r.higher ? "≥" : "≤"} {r.warn}{r.unit}</em></p>
     </article>
   );
@@ -478,8 +497,8 @@ function FeaturedLists({ f, corps, onPick }: { f: Featured; corps: Corp[]; onPic
 function HowTo() {
   const steps = [
     ["01", "공시 수집", "DART Open API로 최근 사업보고서의 재무제표, 감사의견, 최대주주 변동 내역을 가져옵니다."],
-    ["02", "비율 산출", "안정성·유동성·수익성·성장성·이자상환능력 6개 지표를 3개년으로 계산합니다."],
-    ["03", "업종 비교", "상장사 전체를 KSIC 업종별로 묶어 중앙값과 업종 내 순위를 보여줍니다."],
+    ["02", "비율 산출", "안정성·유동성·수익성·성장성·이자상환능력 6개 지표를 최대 5개년으로 계산합니다."],
+    ["03", "업종 비교", "상장사 전체를 KSIC 업종별로 묶어 중앙값, 업종 내 순위, 업종 상대평가 등급을 보여줍니다."],
     ["04", "부실 조기경보", "비적정 감사의견, 자본잠식, 연속 영업손실, 흑자부도 신호, 한계기업을 표시합니다."],
   ];
   return (

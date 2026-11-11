@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { extract, ratios, isZombie, score, type Row } from "./ratios.ts";
+import { extract, ratios, isZombie, score, peerLevel, type Row } from "./ratios.ts";
 
 const row = (sj_div: string, account_id: string, account_nm: string, b: string, f: string, t: string): Row => ({
   sj_div, account_id, account_nm, bfefrmtrm_amount: b, frmtrm_amount: f, thstrm_amount: t,
@@ -34,5 +34,19 @@ assert.equal(isZombie(noDebt), false);
 assert.equal(score(r)!.grade, "D"); // zombie caps score
 assert.equal(score(noDebt)!.score, 100);
 assert.equal(r.filter((x) => x.good === undefined).length, 0);
+
+// 5 years (two reports joined): zombie looks at the latest 3 only, growth at each previous year.
+const five = { ...extract(rows) };
+for (const k of Object.keys(five) as (keyof typeof five)[]) five[k] = [five[k][0], five[k][1], ...five[k]];
+const r5 = ratios(five);
+assert.equal(r5[0].values.length, 5);
+assert.equal(isZombie(ratios({ ...five, interestPaid: [1, 1, 0, 0, 0], operatingIncome: [-1, -1, 1, 1, 1] })), false);
+assert.equal(isZombie(ratios({ ...five, interestPaid: [0, 0, 100, 100, 100] })), true);
+
+// Industry-relative levels feed the same score.
+assert.equal(peerLevel(10), "good");
+assert.equal(peerLevel(60), "warn");
+assert.equal(peerLevel(90), "bad");
+assert.equal(score(noDebt, ["warn"])!.score, 60);
 
 console.log("ratios ok");

@@ -31,8 +31,8 @@ async function one(code: string): Promise<Cached> {
   const rs = acc ? ratios(acc) : null;
   const out: Cached = {
     ksic,
-    v: rs ? Object.fromEntries(rs.map((r) => [r.key, r.values[2]])) : null,
-    rev: acc?.revenue[2] ?? null,
+    v: rs ? Object.fromEntries(rs.map((r) => [r.key, r.values.at(-1)!])) : null,
+    rev: acc?.revenue.at(-1) ?? null,
     grade: rs ? (score(rs)?.grade ?? null) : null,
     zombie: rs ? isZombie(rs) : null,
   };

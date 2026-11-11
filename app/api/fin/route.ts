@@ -1,5 +1,5 @@
 import { extract } from "@/lib/ratios";
-import { dart, latestStatements, DartError } from "@/lib/dart";
+import { dart, latestStatements, statements, DartError } from "@/lib/dart";
 import type { Audit, HolderChange } from "@/lib/signals";
 
 const KEY = process.env.DART_API_KEY;
@@ -26,8 +26,18 @@ export async function GET(req: Request) {
     const st = await latestStatements(corp, KEY, CACHE);
     if (!st) return Response.json({ error: "최근 2년 사업보고서 재무제표 없음 (상장폐지·합병·신규상장 등)" }, { status: 404 });
     // Non-financial signals are a bonus: a failure there must not hide the statements.
-    const [a, h] = await Promise.all([audit(corp, st.year).catch(() => null), holders(corp, st.year).catch(() => [])]);
-    return Response.json({ year: st.year, fs: st.fs, accounts: extract(st.rows), audit: a, holders: h });
+    // The report from 3 years earlier adds 2 more fiscal years (5 in total); its oldest year is dropped.
+    const [a, h, old] = await Promise.all([
+      audit(corp, st.year).catch(() => null),
+      holders(corp, st.year).catch(() => []),
+      statements(corp, st.year - 3, st.fs, KEY, CACHE).catch(() => null),
+    ]);
+    const acc = extract(st.rows);
+    if (old) {
+      const prev = extract(old);
+      for (const k of Object.keys(acc) as (keyof typeof acc)[]) acc[k] = [...prev[k].slice(1), ...acc[k]];
+    }
+    return Response.json({ year: st.year, fs: st.fs, accounts: acc, audit: a, holders: h });
   } catch (e) {
     if (e instanceof DartError) return Response.json({ error: e.message }, { status: 502 });
     throw e;

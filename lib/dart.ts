@@ -18,10 +18,17 @@ export async function latestStatements(corp: string, key: string, init?: Request
   const now = new Date().getFullYear();
   for (const year of [now - 1, now - 2]) {
     for (const fs of ["CFS", "OFS"] as const) {
-      const j = await dart("fnlttSinglAcntAll.json", { corp_code: corp, bsns_year: String(year), reprt_code: "11011", fs_div: fs }, key, init);
-      if (j.status === "000" && j.list?.length) return { year, fs, rows: j.list as unknown as Row[] };
-      if (j.status !== "013") throw new DartError(`DART ${j.status}: ${j.message}`);
+      const rows = await statements(corp, year, fs, key, init);
+      if (rows) return { year, fs, rows };
     }
   }
+  return null;
+}
+
+// One annual report (3 fiscal years). null = not filed (status 013).
+export async function statements(corp: string, year: number, fs: "CFS" | "OFS", key: string, init?: RequestInit) {
+  const j = await dart("fnlttSinglAcntAll.json", { corp_code: corp, bsns_year: String(year), reprt_code: "11011", fs_div: fs }, key, init);
+  if (j.status === "000" && j.list?.length) return j.list as unknown as Row[];
+  if (j.status !== "013") throw new DartError(`DART ${j.status}: ${j.message}`);
   return null;
 }
