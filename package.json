@@ -1,0 +1,23 @@
+{
+  "name": "radar",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "corps": "node scripts/corps.mjs",
+    "test": "node --experimental-strip-types lib/ratios.test.ts && node --experimental-strip-types lib/signals.test.ts",
+    "peers": "node --experimental-strip-types scripts/peers.ts"
+  },
+  "dependencies": {
+    "next": "^16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}

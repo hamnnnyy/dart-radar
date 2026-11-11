@@ -1,0 +1,8 @@
+node_modules
+.next
+.env*
+.vercel
+next-env.d.ts
+*.tsbuildinfo
+scripts/.cache
+scripts/peers.log
