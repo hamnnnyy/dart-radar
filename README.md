@@ -7,7 +7,7 @@
 전자공시(DART) 재무제표로 6개 핵심 비율을 계산하고, 업종 평균과 비교하며,
 감사의견·자본잠식·최대주주 변경 같은 부실 징후와 한계기업 여부를 한 화면에 보여줍니다.
 
-[**🔗 Live Demo**](__LIVE_URL__) · Next.js 16 · TypeScript · DART Open API · Vercel
+[**🔗 Live Demo**](https://dart-radar-two.vercel.app) · Next.js 16 · TypeScript · DART Open API · Vercel
 
 </div>
 
