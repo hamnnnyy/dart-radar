@@ -91,7 +91,7 @@ main.wrap { padding-top: 28px; padding-bottom: 80px; }
 
 /* ratio cards */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; }
-.ratio { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 18px 16px; transition: box-shadow 0.2s, translate 0.2s; }
+.ratio { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 18px 16px; }
 .ratio header { display: flex; justify-content: space-between; align-items: center; }
 .ratio h4 { margin: 0; font-size: 15px; }
 .big { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin: 6px 0 4px; }
